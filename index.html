@@ -1,0 +1,374 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💋 Spicy Wordle 💋</title>
+  <style>
+    body {
+      background-color: #000000;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    .container {
+      max-width: 600px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 2.5em;
+      color: #FF69B4;
+      margin: 0 0 20px 0;
+    }
+    .game-board {
+      display: grid;
+      grid-template-rows: repeat(6, 60px);
+      gap: 5px;
+      margin: 20px 0;
+      width: 330px; /* 5 tiles * 60px + 4 gaps * 5px */
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      gap: 5px;
+    }
+    .tile {
+      width: 60px;
+      height: 60px;
+      border: 2px solid #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2em;
+      text-transform: uppercase;
+      background-color: #000000;
+      color: #ffffff;
+      transition: background-color 0.3s, transform 0.3s;
+    }
+    .tile.correct {
+      background-color: #FF69B4;
+      border-color: #FF69B4;
+      color: #000000;
+    }
+    .tile.present {
+      background-color: #FF1493;
+      border-color: #FF1493;
+      color: #000000;
+    }
+    .tile.absent {
+      background-color: #333333;
+      border-color: #333333;
+    }
+    .tile.filled {
+      animation: pop 0.2s ease-in-out;
+    }
+    @keyframes pop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    .keyboard {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      width: 330px; /* Match game-board width for alignment */
+      margin: 20px 0;
+    }
+    .keyboard-row {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+    }
+    .key {
+      background-color: #ffffff;
+      color: #000000;
+      border: none;
+      padding: 10px;
+      font-size: 1.2em;
+      cursor: pointer;
+      text-transform: uppercase;
+      width: 40px;
+      height: 50px;
+      border-radius: 5px;
+    }
+    .key.wide {
+      width: 60px;
+    }
+    .key.correct {
+      background-color: #FF69B4;
+      color: #000000;
+    }
+    .key.present {
+      background-color: #FF1493;
+      color: #000000;
+    }
+    .key.absent {
+      background-color: #333333;
+      color: #ffffff;
+    }
+    .message {
+      margin-top: 20px;
+      font-size: 1.5em;
+      color: #FF69B4;
+    }
+    input {
+      background-color: #000000;
+      color: #ffffff;
+      border: 2px solid #FF69B4;
+      padding: 10px;
+      font-size: 1.2em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 20px;
+      display: none; /* Hidden input for mobile compatibility */
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>💋 Spicy Wordle 💋</h1>
+    <input type="text" id="hiddenInput" maxlength="5" />
+    <div class="game-board" id="gameBoard"></div>
+    <div class="keyboard" id="keyboard"></div>
+    <div class="message" id="message"></div>
+  </div>
+  <script>
+    const dictionary = [
+      'kinky', 'flirt', 'tease', 'spicy', 'lusty', 'sassy', 'naughty', 'randy', 'saucy', 'steamy',
+      'foxy', 'vixen', 'minxy', 'horny', 'zesty', 'sultry', 'swank', 'tarty', 'risque', 'lewd',
+      'bawdy', 'crave', 'wooey', 'smexy', 'yummy', 'juicy', 'peachy', 'plump', 'curvy', 'busty',
+      'fling', 'spark', 'charm', 'wooer', 'seduce', 'allure', 'tempt', 'arouse', 'thrill', 'tingle',
+      'panty', 'brawn', 'hunky', 'studly', 'gorge', 'siren', 'diva', 'femme', 'hottie', 'cutie',
+      'snug', 'cuddly', 'kiss', 'smack', 'lick', 'bite', 'nibble', 'pinch', 'spank', 'whip',
+      'moan', 'groan', 'sigh', 'gasp', 'purr', 'growl', 'hiss', 'yelp', 'squeal', 'shriek',
+      'booty', 'thong', 'lacy', 'silky', 'sheer', 'tight', 'bare', 'nude', 'raw', 'wild',
+      'freak', 'dolly', 'babe', 'daddy', 'momma', 'sugar', 'honey', 'sweet', 'candy', 'spice',
+      'rave', 'party', 'dance', 'grind', 'twerk', 'sway', 'dip', 'spin', 'throb', 'pulse',
+      'heat', 'fire', 'blaze', 'glow', 'warm', 'hot', 'sizzle', 'burn', 'flame', 'torch',
+      'winky', 'cheek', 'glitz', 'shine', 'gleam', 'flash', 'stun', 'dazzle', 'primp', 'preen',
+      'strut', 'swag', 'poise', 'grace', 'chic', 'vogue', 'style', 'flair', 'dash', 'pizazz',
+      'romp', 'frolic', 'play', 'tease', 'jest', 'joke', 'giggle', 'laugh', 'smirk', 'grin',
+      'cozy', 'snug', 'warm', 'soft', 'lush', 'plush', 'silk', 'satin', 'velvet', 'fuzzy'
+    ];
+    const targetWord = dictionary[Math.floor(Math.random() * dictionary.length)];
+    let currentRow = 0;
+    let currentTile = 0;
+    let gameOver = false;
+
+    // Create game board
+    const gameBoard = document.getElementById('gameBoard');
+    for (let i = 0; i < 6; i++) {
+      const row = document.createElement('div');
+      row.classList.add('row');
+      for (let j = 0; j < 5; j++) {
+        const tile = document.createElement('div');
+        tile.classList.add('tile');
+        row.appendChild(tile);
+      }
+      gameBoard.appendChild(row);
+    }
+
+    // Create keyboard
+    const keyboard = document.getElementById('keyboard');
+    const keyboardLayout = [
+      ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+      ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+      ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACK']
+    ];
+    keyboardLayout.forEach(row => {
+      const keyboardRow = document.createElement('div');
+      keyboardRow.classList.add('keyboard-row');
+      row.forEach(key => {
+        const button = document.createElement('button');
+        button.classList.add('key');
+        if (key === 'ENTER' || key === 'BACK') button.classList.add('wide');
+        button.textContent = key;
+        button.addEventListener('click', () => handleKey(key));
+        keyboardRow.appendChild(button);
+      });
+      keyboard.appendChild(keyboardRow);
+    });
+
+    // Handle keyboard input
+    document.addEventListener('keydown', (e) => {
+      if (gameOver) return;
+      const key = e.key.toUpperCase();
+      if (key === 'ENTER') handleKey('ENTER');
+      else if (key === 'BACKSPACE') handleKey('BACK');
+      else if (/^[A-Z]$/.test(key)) handleKey(key);
+    });
+
+    // Handle hidden input for mobile
+    const hiddenInput = document.getElementById('hiddenInput');
+    hiddenInput.addEventListener('input', (e) => {
+      if (gameOver) return;
+      const value = e.target.value.toUpperCase();
+      if (value.length > 0) {
+        handleKey(value[value.length - 1]);
+        e.target.value = '';
+      }
+    });
+
+    function handleKey(key) {
+      if (gameOver) return;
+      const rows = document.querySelectorAll('.row');
+      const tiles = rows[currentRow].children;
+
+      if (key === 'ENTER') {
+        if (currentTile === 5) {
+          const guess = Array.from(tiles).map(tile => tile.textContent).join('');
+          if (dictionary.includes(guess.toLowerCase())) {
+            checkGuess(guess);
+            currentRow++;
+            currentTile = 0;
+          } else {
+            showMessage('Not in word list!');
+            shakeRow(rows[currentRow]);
+          }
+        }
+      } else if (key === 'BACK') {
+        if (currentTile > 0) {
+          currentTile--;
+          tiles[currentTile].textContent = '';
+          tiles[currentTile].classList.remove('filled');
+        }
+      } else if (/^[A-Z]$/.test(key) && currentTile < 5) {
+        tiles[currentTile].textContent = key;
+        tiles[currentTile].classList.add('filled');
+        currentTile++;
+      }
+    }
+
+    function checkGuess(guess) {
+      const tiles = document.querySelectorAll('.row')[currentRow].children;
+      const keyboardKeys = document.querySelectorAll('.key');
+      const guessArray = guess.split('');
+      const targetArray = targetWord.toUpperCase().split('');
+      const letterCount = {};
+
+      // Count letters in target word
+      targetArray.forEach(letter => {
+        letterCount[letter] = (letterCount[letter] || 0) + 1;
+      });
+
+      // First pass: Mark correct letters
+      guessArray.forEach((letter, i) => {
+        if (letter === targetArray[i]) {
+          tiles[i].classList.add('correct');
+          letterCount[letter]--;
+          updateKeyboard(letter, 'correct');
+        }
+      });
+
+      // Second pass: Mark present and absent letters
+      guessArray.forEach((letter, i) => {
+        if (!tiles[i].classList.contains('correct')) {
+          if (targetArray.includes(letter) && letterCount[letter] > 0) {
+            tiles[i].classList.add('present');
+            letterCount[letter]--;
+            updateKeyboard(letter, 'present');
+          } else {
+            tiles[i].classList.add('absent');
+            updateKeyboard(letter, 'absent');
+          }
+        }
+      });
+
+      if (guess === targetWord.toUpperCase()) {
+        showMessage('You got it! 💋');
+        gameOver = true;
+      } else if (currentRow === 5) {
+        showMessage(`Game over! The word was ${targetWord.toUpperCase()} 😘`);
+        gameOver = true;
+      }
+    }
+
+    function updateKeyboard(letter, state) {
+      const key = document.querySelector(`.key:not(.wide)[textContent="${letter}"]`);
+      if (key) {
+        if (state === 'correct' || key.classList.contains('correct')) {
+          key.classList.add('correct');
+        } else if (state === 'present' && !key.classList.contains('correct')) {
+          key.classList.add('present');
+        } else if (state === 'absent' && !key.classList.contains('correct') && !key.classList.contains('present')) {
+          key.classList.add('absent');
+        }
+      }
+    }
+
+    function showMessage(text) {
+      const message = document.getElementById('message');
+      message.textContent = text;
+      setTimeout(() => {
+        message.textContent = '';
+      }, 3000);
+    }
+
+    function shakeRow(row) {
+      row.style.animation = 'shake 0.5s';
+      setTimeout(() => {
+        row.style.animation = '';
+      }, 500);
+    }
+
+    const styleSheet = document.styleSheets[0];
+    styleSheet.insertRule(`
+      @keyframes shake {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-10px); }
+        50% { transform: translateX(10px); }
+        75% { transform: translateX(-10px); }
+        100% { transform: translateX(0); }
+      }
+    `, styleSheet.cssRules.length);
+  </script>
+</body>
+</html>
